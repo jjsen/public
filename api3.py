@@ -1,38 +1,46 @@
 import requests
-import json
-import traceback
+from getpass import getpass
 
 # Configuration
-JIRA_URL = "https://your-jira-instance.atlassian.net"
-ISSUE_KEY = "ISSUE-123"
-JIRA_API_ENDPOINT = f"/rest/api/2/issue/{ISSUE_KEY}"
-AUTH = ('your_email@example.com', 'your_api_token')
-OUTPUT_FORMAT = 'json'  # Change to 'csv' if you prefer CSV
+jira_url = "https://your-domain.atlassian.net"  # Your JIRA domain
+test_issue_key = "XRAY-123"  # Specific test issue key
+api_token = getpass("Enter your JIRA API token: ")
+email = input("Enter your JIRA email: ")
 
-# Function to fetch a specific issue from JIRA
-def fetch_issue():
-    url = f"{JIRA_URL}{JIRA_API_ENDPOINT}"
-    headers = {
-        "Accept": "application/json"
-    }
-    try:
-        response = requests.get(url, headers=headers, auth=AUTH)
-        response.raise_for_status()  # Raises stored HTTPError, if one occurred
-        return response.json()
-    except requests.RequestException:
-        traceback.print_exc()
-        return None
+# API Headers
+auth = requests.auth.HTTPBasicAuth(email, api_token)
+headers = {
+    "Accept": "application/json"
+}
 
-# Function to export issue data to JSON
-def export_to_json(data):
-    with open('issue_data.json', 'w', encoding='utf-8') as file:
-        json.dump(data, file, ensure_ascii=False, indent=4)
+def fetch_xray_test_data(test_key):
+    """Fetch all Xray test data for a specific test issue key."""
+    page = 0
+    all_data = []
 
-# Main script execution
+    while True:
+        # Update the endpoint URL with pagination & test issue key
+        url = f"{jira_url}/rest/raven/1.0/api/test/{test_key}/testruns?page={page}"
+        response = requests.get(url, headers=headers, auth=auth)
+        
+        if response.status_code == 200:
+            data = response.json()
+            all_data.extend(data)
+            page += 1
+            # Check if there is more data to fetch
+            if "isLast" in data and data["isLast"]:
+                break
+        else:
+            print("Failed to fetch data:", response.status_code, response.text)
+            break
+
+    return all_data
+
+# Main execution
 if __name__ == "__main__":
-    issue_data = fetch_issue()
-    if issue_data:
-        export_to_json(issue_data)
-        print("Issue data exported to issue_data.json")
+    test_data = fetch_xray_test_data(test_issue_key)
+    if test_data:
+        print("Fetched data:", test_data)
     else:
-        print("No data to export.")
+        print("No data to display.")
+
